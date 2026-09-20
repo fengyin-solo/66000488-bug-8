@@ -6,11 +6,29 @@
     </header>
     <main class="app-main">
       <ControlPanel @sample="handleSample" />
-      <div class="main-grid" v-if="store.result">
-        <div class="plot-area"><RamachandranPlot /></div>
-        <div class="viewer-area"><ProteinViewer3D /></div>
-      </div>
-      <ConformationTable v-if="store.result" />
+      <el-alert
+        v-if="store.error"
+        :title="store.error"
+        type="error"
+        show-icon
+        :closable="false"
+        class="state-alert"
+      />
+      <el-empty
+        v-else-if="!store.result && store.loading"
+        description="正在生成构象采样，请稍候…"
+      />
+      <el-empty
+        v-else-if="!store.result"
+        description="暂无构象记录：请在上方设置残基数与构象数量，点击「生成构象采样」获取数据。"
+      />
+      <template v-else-if="store.result">
+        <div class="main-grid">
+          <div class="plot-area"><RamachandranPlot /></div>
+          <div class="viewer-area"><ProteinViewer3D /></div>
+        </div>
+        <ConformationTable />
+      </template>
     </main>
   </div>
 </template>
@@ -36,4 +54,5 @@ body{font-family:system-ui,sans-serif;background:#f0f2f5}
 .subtitle{opacity:.85;margin-top:4px;font-size:.9rem}
 .app-main{padding:20px 40px}
 .main-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+.state-alert{margin-top:16px}
 </style>

@@ -2,10 +2,17 @@
   <div class="panel">
     <h3>🔬 3D蛋白骨架 (Cα原子轨迹)</h3>
     <div ref="container" class="viewer3d"></div>
-    <p class="info" v-if="store.selectedConformation">
-      当前: φ={{ store.selectedConformation.phi.toFixed(1) }}° ψ={{ store.selectedConformation.psi.toFixed(1) }}° 能量={{ store.selectedConformation.energy.toFixed(2) }} kcal/mol
+    <p class="info" v-if="store.isVisible(store.selectedConformation) && store.selectedConformation">
+      当前: ID={{ store.selectedConformation.id }}
+      φ={{ store.selectedConformation.phi.toFixed(1) }}°
+      ψ={{ store.selectedConformation.psi.toFixed(1) }}°
+      能量={{ store.selectedConformation.energy.toFixed(2) }} kcal/mol
+      <span class="deselect-hint">（再次点击表格中的该行可取消选中）</span>
     </p>
-    <p class="info" v-else>点击Ramachandran图或表格中的构象以查看3D骨架</p>
+    <p class="info" v-else-if="store.visibleConformations.length === 0">
+      当前区域下没有构象记录，未显示3D骨架；请切换区域筛选或重新生成采样。
+    </p>
+    <p class="info" v-else>点击表格中的构象记录以查看对应的3D骨架</p>
   </div>
 </template>
 
@@ -20,6 +27,18 @@ const container = ref<HTMLDivElement>()
 let scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer
 let controls: OrbitControls, animationId: number
 let backboneGroup = new THREE.Group()
+
+function disposeBackbone() {
+  backboneGroup.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      obj.geometry.dispose()
+      const mat = obj.material
+      if (Array.isArray(mat)) mat.forEach(m => m.dispose())
+      else mat.dispose()
+    }
+  })
+  backboneGroup.clear()
+}
 
 function initScene() {
   if (!container.value) return
@@ -56,7 +75,7 @@ function initScene() {
 }
 
 function buildBackbone(phi: number, psi: number) {
-  backboneGroup.clear()
+  disposeBackbone()
   const bondLen = 1.47
   const angle = 109.5 * Math.PI / 180
 
@@ -126,18 +145,23 @@ function onResize() {
 
 onMounted(() => {
   initScene()
-  buildBackbone(-60, -45)
+  // 无选中记录时不预置任何骨架，避免显示与选中项无关的残留画面
+  disposeBackbone()
   animate()
   window.addEventListener('resize', onResize)
 })
 
+// 选中、取消选中（再次点击同一条/被区域排除）或数据替换时与 store 保持一致：
+// 无有效选中项就清空骨架，绝不沿用上一条或上一批的构象
 watch(() => store.selectedConformation, (conf) => {
-  if (conf) buildBackbone(conf.phi, conf.psi)
+  if (store.isVisible(conf)) buildBackbone(conf.phi, conf.psi)
+  else disposeBackbone()
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onResize)
+  disposeBackbone()
   renderer?.dispose()
 })
 </script>
@@ -147,4 +171,5 @@ onUnmounted(() => {
 .panel h3 { margin-bottom: 12px; color: #333; }
 .viewer3d { width: 100%; height: 380px; border-radius: 8px; overflow: hidden; border: 1px solid #eee; }
 .info { text-align: center; margin-top: 10px; font-size: 13px; color: #666; }
+.deselect-hint { color: #999; font-size: 12px; }
 </style>

@@ -2,9 +2,19 @@
   <div class="panel" style="margin-top:16px">
     <div class="table-header">
       <h3>📋 构象数据 (共 {{ confs.length }} 条)</h3>
-      <el-button size="small" @click="exportCSV">导出 CSV</el-button>
+      <el-button size="small" :disabled="confs.length === 0" @click="exportCSV">导出 CSV</el-button>
     </div>
-    <el-table :data="confs" stripe max-height="360" highlight-current-row @row-click="onRowClick" size="small">
+    <el-table
+      ref="tableRef"
+      :data="confs"
+      stripe
+      row-key="id"
+      max-height="360"
+      highlight-current-row
+      empty-text="当前区域下没有构象记录，请切换上方的区域筛选或重新生成采样。"
+      @row-click="onRowClick"
+      size="small"
+    >
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="phi" label="φ (°)" width="100">
         <template #default="{ row }">{{ row.phi.toFixed(2) }}</template>
@@ -26,16 +36,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useProteinStore } from '../store/protein'
 import type { Conformation } from '../types'
 
 const store = useProteinStore()
-const confs = computed(() => (store.result?.conformations || []).filter(c =>
-  store.selectedCluster === 'all' || c.cluster === store.selectedCluster
-))
+// 与图共用同一份"筛选后可见"的记录，保证表里看不到的记录也不会在别处残留高亮
+const confs = computed(() => store.visibleConformations)
+const tableRef = ref<{ setCurrentRow: (row: Conformation | null) => void }>()
 
 function onRowClick(row: Conformation) { store.selectConformation(row) }
+
+// 选中项被筛选排除、手动取消或数据替换时，同步取消表格当前行高亮
+watch(() => store.selectedConformation, (row) => {
+  tableRef.value?.setCurrentRow(store.isVisible(row) ? row : null)
+})
+
 function tagType(r: string) {
   const m: Record<string, any> = { 'alpha-helix': 'success', 'beta-sheet': 'danger', 'left-helix': 'warning' }
   return m[r] || 'info'
