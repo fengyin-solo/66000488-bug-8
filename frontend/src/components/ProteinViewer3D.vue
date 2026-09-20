@@ -2,24 +2,34 @@
   <div class="panel">
     <h3>🔬 3D蛋白骨架 (Cα原子轨迹)</h3>
     <div ref="container" class="viewer3d"></div>
-    <p class="info" v-if="store.selectedConformation">
-      当前: φ={{ store.selectedConformation.phi.toFixed(1) }}° ψ={{ store.selectedConformation.psi.toFixed(1) }}° 能量={{ store.selectedConformation.energy.toFixed(2) }} kcal/mol
+    <p class="info" v-if="selectedConformation">
+      当前: ID={{ selectedConformation.id }}
+      φ={{ selectedConformation.phi.toFixed(1) }}°
+      ψ={{ selectedConformation.psi.toFixed(1) }}°
+      能量={{ selectedConformation.energy.toFixed(2) }} kcal/mol
     </p>
-    <p class="info" v-else>点击Ramachandran图或表格中的构象以查看3D骨架</p>
+    <p class="info" v-else-if="store.result && visibleCount > 0">点击Ramachandran图或表格中的构象以查看3D骨架</p>
+    <p class="info" v-else>当前没有可查看的构象记录</p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useProteinStore } from '../store/protein'
 
 const store = useProteinStore()
 const container = ref<HTMLDivElement>()
+const visibleCount = computed(() => store.visibleConformations.length)
+const selectedConformation = computed(() =>
+  store.visibleConformations.some(c => c.id === store.selectedConformation?.id)
+    ? store.selectedConformation
+    : null
+)
 let scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer
 let controls: OrbitControls, animationId: number
-let backboneGroup = new THREE.Group()
+const backboneGroup = new THREE.Group()
 
 function initScene() {
   if (!container.value) return
@@ -55,8 +65,19 @@ function initScene() {
   scene.add(backboneGroup)
 }
 
-function buildBackbone(phi: number, psi: number) {
+function clearBackbone() {
+  backboneGroup.traverse(obj => {
+    const mesh = obj as THREE.Mesh
+    mesh.geometry?.dispose()
+    const material = mesh.material as THREE.Material | THREE.Material[] | undefined
+    if (Array.isArray(material)) material.forEach(m => m.dispose())
+    else material?.dispose()
+  })
   backboneGroup.clear()
+}
+
+function buildBackbone(phi: number, psi: number) {
+  clearBackbone()
   const bondLen = 1.47
   const angle = 109.5 * Math.PI / 180
 
@@ -126,18 +147,24 @@ function onResize() {
 
 onMounted(() => {
   initScene()
-  buildBackbone(-60, -45)
   animate()
   window.addEventListener('resize', onResize)
 })
 
-watch(() => store.selectedConformation, (conf) => {
-  if (conf) buildBackbone(conf.phi, conf.psi)
-})
+watch(
+  () => [selectedConformation.value, store.result, store.selectedRegion] as const,
+  async ([conf]) => {
+    await nextTick()
+    if (conf) buildBackbone(conf.phi, conf.psi)
+    else clearBackbone()
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {
   cancelAnimationFrame(animationId)
   window.removeEventListener('resize', onResize)
+  clearBackbone()
   renderer?.dispose()
 })
 </script>

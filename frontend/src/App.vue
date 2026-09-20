@@ -6,11 +6,38 @@
     </header>
     <main class="app-main">
       <ControlPanel @sample="handleSample" />
-      <div class="main-grid" v-if="store.result">
-        <div class="plot-area"><RamachandranPlot /></div>
-        <div class="viewer-area"><ProteinViewer3D /></div>
-      </div>
-      <ConformationTable v-if="store.result" />
+
+      <el-alert
+        v-if="store.errorMessage"
+        type="error"
+        show-icon
+        :closable="false"
+        title="构象数据读取失败"
+        :description="store.errorMessage"
+      />
+
+      <template v-if="store.result">
+        <el-alert
+          v-if="store.result.conformations.length === 0"
+          type="info"
+          show-icon
+          :closable="false"
+          title="没有构象记录"
+          description="本次采样未返回任何构象，请重新生成。"
+          style="margin-top: 16px"
+        />
+        <div v-else class="main-grid">
+          <div class="plot-area"><RamachandranPlot /></div>
+          <div class="viewer-area"><ProteinViewer3D /></div>
+        </div>
+        <ConformationTable v-if="store.result.conformations.length > 0" />
+      </template>
+
+      <el-empty
+        v-else-if="!store.loading && !store.errorMessage"
+        description="暂无构象数据，请先生成构象采样"
+        style="margin-top: 40px"
+      />
     </main>
   </div>
 </template>
